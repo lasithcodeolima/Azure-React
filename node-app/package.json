@@ -22,6 +22,7 @@
     "express-session": "^1.18.0",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^2.1.5",
+    "jwt-decode": "^4.0.0",
     "mongoose": "^8.5.1",
     "passport": "^0.7.0",
     "passport-azure-ad": "^4.3.5",
