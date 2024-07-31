@@ -1,63 +1,37 @@
 const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const jwt = require('jsonwebtoken');
-const jwksClient = require('jwks-rsa');
-const jwtDecode = require('jwt-decode');
+require('dotenv').config();
+const cors = require('cors'); // Import the cors middleware
 
+// Used to validate JWT access tokens
+const jwt = require('express-jwt');
+const jwks = require('jwks-rsa');
+const jwtAuthz = require('express-jwt-authz');
+
+const config = {
+  auth: {
+    tenant: process.env.AZURE_TENANT_ID,
+    audience: process.env.AZURE_CLIENT_ID
+  }
+};
+
+// Initialize Express
 const app = express();
-const PORT = 8080;
+app.use(cors()); 
 
-const client = jwksClient({
-    jwksUri: 'https://login.microsoftonline.com/YOUR_TENANT_ID/discovery/v2.0/keys' // Replace YOUR_TENANT_ID
+// Add Express middleware to validate JWT access tokens
+app.use(jwt({
+  secret: jwks.expressJwtSecret({
+    jwksUri: 'https://login.microsoftonline.com/' + config.auth.tenant + '/discovery/v2.0/keys'
+  }),
+  audience: config.auth.audience,
+  issuer: 'https://login.microsoftonline.com/' + config.auth.tenant + '/v2.0',
+  algorithms: ['RS256']
+}));
+
+// Verify the JWT access token is valid and contains 'Greeting.Read' for the scope to access the endpoint.
+// Instruct jwtAuthz to pull scopes from the 'scp' claim, which is the claim used by Azure AD.
+app.post('/me', jwtAuthz(['Greeting.Read'], { customScopeKey: 'scp' }), (req, res) => {
+  res.send('Hello, world. You were able to access this because you provided a valid access token with the Greeting.Read scope as a claim.');
 });
 
-function getKey(header, callback) {
-    client.getSigningKey(header.kid, function (err, key) {
-        if (err) {
-            console.error('Error getting signing key:', err);
-            return callback(err);
-        }
-        const signingKey = key.getPublicKey();
-        callback(null, signingKey);
-    });
-}
-
-app.use(cors());
-app.use(bodyParser.json());
-
-app.post('/me', (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-        return res.status(401).send('Authorization header missing');
-    }
-
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-        return res.status(401).send('Token missing');
-    }
-
-    try {
-        console.log('Received access token:', token);
-
-        const decodedToken = jwtDecode(token);
-        console.log('Decoded token payload:', decodedToken);
-
-        jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, decoded) => {
-            if (err) {
-                console.error('Error verifying token:', err);
-                return res.status(401).send('Invalid token');
-            }
-            console.log('Token is valid:', decoded);
-
-            res.status(200).send('Data received successfully');
-        });
-    } catch (error) {
-        console.error('Error decoding token:', error);
-        res.status(401).send('Invalid token');
-    }
-});
-
-app.listen(PORT, () => {
-    console.log(`Listening here:\nhttp://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`Listening here:\nhttp://localhost:${PORT}`));
