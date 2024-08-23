@@ -25,23 +25,33 @@ const ProfileContent = () => {
                 account: accounts[0],
             })
             .then((response) => {
-                console.log('Acquired token:', response.accessToken);
+                console.log('Access token:', response.accessToken);
+                console.log('Id token:', response.idToken);
+                
+                // Fetch profile data from Microsoft Graph
                 callMsGraph(response.accessToken)
                     .then((graphData) => {
+                        console.log(graphData);
                         setGraphData(graphData);
-                        fetch('http://localhost:8080/me', {
+                        
+                        // Send data to the backend
+                        fetch('http://localhost:8080/token', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${response.accessToken}`
+                                'Authorization': `Bearer ${response.idToken}`
                             },
                             body: JSON.stringify(graphData)
                         })
                         .then(res => {
+                            console.log('Response:', res);
                             if (!res.ok) {
                                 throw new Error('Network response was not ok');
                             }
-                            console.log('Data successfully sent to backend');
+                            return res.json();
+                        })
+                        .then(data => {
+                            console.log('Data successfully sent to backend:', data);
                         })
                         .catch(error => console.error('Error sending data to backend:', error));
                     })

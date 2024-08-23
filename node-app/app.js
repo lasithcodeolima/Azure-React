@@ -42,7 +42,7 @@ app.post('/token',(req, res,next) => {
 }),
 // jwtAuthz(['Greeting.Read'], { customScopeKey: 'scp' }),
 (req, res) => {
-  res.send('Hello, world. You were able to access this because you provided a valid access token with the Greeting.Read scope as a claim.')
+  res.status(200).json("Hello, world. You were able to access this because you provided a valid access token with the Greeting.Read scope as a claim.")
 })
 
 app.listen(8080, () => console.log('\nListening here:\nhttp://localhost:8080'));
