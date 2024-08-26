@@ -17,13 +17,13 @@ const ProfileContent = () => {
             account: accounts[0],
         })
         .then((response) => {
-            // console.log("Access token:", response.accessToken);
+            console.log("Access token:", response.accessToken);
 
             // Fetch profile data from Microsoft Graph
             return callMsGraph(response.accessToken);
         })
         .then((graphData) => {
-            // console.log(graphData);
+            console.log(graphData);
             setGraphData(graphData);
         })
         .catch((error) => {
@@ -49,23 +49,52 @@ const App = () => {
     const { instance, accounts } = useMsal();
 
     useEffect(() => {
-        if (accounts.length > 0) {
+        const storedIdToken = localStorage.getItem("idToken");
+
+        if (storedIdToken && accounts.length > 0) {
+            console.log("ID Token retrieved from storage:", storedIdToken);
+            
+            // Send the stored token to the backend immediately after login
+            fetch("http://localhost:8080/token", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${storedIdToken}`
+                },
+                body: JSON.stringify({ idToken: storedIdToken }),
+            })
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error("Network response was not ok");
+                }
+                return res.json();
+            })
+            .then((data) => {
+                console.log("Token successfully sent to backend:", data);
+            })
+            .catch((error) => {
+                console.error("Error during token sending process:", error);
+            });
+        } else if (accounts.length > 0) {
+            // If no token in storage, proceed to acquire a new token
             instance.acquireTokenSilent({
                 ...loginRequest,
                 account: accounts[0],
             })
             .then((response) => {
-                console.log("Access token:", response.accessToken);
-                console.log("Id token:", response.idToken);
+                console.log("New ID Token acquired:", response.idToken);
 
-                // Send the token to the backend immediately after login
+                // Store the new ID token
+                localStorage.setItem("idToken", response.idToken);
+
+                //Send the new token to the backend
                 return fetch("http://localhost:8080/token", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${response.idToken}`
                     },
-                    body: JSON.stringify({ accessToken: response.accessToken }),
+                    body: JSON.stringify({ idToken: response.idToken }),
                 });
             })
             .then((res) => {
@@ -90,7 +119,6 @@ const App = () => {
             </AuthenticatedTemplate>
 
             <UnauthenticatedTemplate>
-                 {/* <h5 className="card-title">Please sign-in to see your profile information.</h5> */}
             </UnauthenticatedTemplate>
         </PageLayout>
     );
