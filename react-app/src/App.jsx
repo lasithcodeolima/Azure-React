@@ -1,64 +1,35 @@
-import React, { useState } from 'react';
-
-import { PageLayout } from './components/PageLayout';
-import { loginRequest } from './authConfig';
-import { callMsGraph } from './graph';
-import { ProfileData } from './components/ProfileData';
-
-import { AuthenticatedTemplate, UnauthenticatedTemplate, useMsal } from '@azure/msal-react';
-import './App.css';
-import Button from 'react-bootstrap/Button';
-
-/**
- * Renders information about the signed-in user or a button to retrieve data about the user
- */
+import React, { useEffect, useState } from "react";
+import { PageLayout } from "./components/PageLayout";
+import { loginRequest } from "./authConfig";
+import { callMsGraph } from "./graph";
+import { ProfileData } from "./components/ProfileData";
+import { AuthenticatedTemplate, UnauthenticatedTemplate, useMsal } from "@azure/msal-react";
+import "./App.css";
+import Button from "react-bootstrap/Button";
 
 const ProfileContent = () => {
     const { instance, accounts } = useMsal();
     const [graphData, setGraphData] = useState(null);
 
-    function RequestProfileData() {
-        // Silently acquires an access token which is then attached to a request for MS Graph data
-        instance
-            .acquireTokenSilent({
-                ...loginRequest,
-                account: accounts[0],
-            })
-            .then((response) => {
-                console.log('Access token:', response.accessToken);
-                console.log('Id token:', response.idToken);
-                
-                // Fetch profile data from Microsoft Graph
-                callMsGraph(response.accessToken)
-                    .then((graphData) => {
-                        console.log(graphData);
-                        setGraphData(graphData);
-                        
-                        // Send data to the backend
-                        fetch('http://localhost:8080/token', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${response.idToken}`
-                            },
-                            body: JSON.stringify(graphData)
-                        })
-                        .then(res => {
-                            console.log('Response:', res);
-                            if (!res.ok) {
-                                throw new Error('Network response was not ok');
-                            }
-                            return res.json();
-                        })
-                        .then(data => {
-                            console.log('Data successfully sent to backend:', data);
-                        })
-                        .catch(error => console.error('Error sending data to backend:', error));
-                    })
-                    .catch(error => console.error('Error fetching profile data:', error));
-            })
-            .catch(error => console.error('Error acquiring token:', error));
-    }
+    const RequestProfileData = () => {
+        instance.acquireTokenSilent({
+            ...loginRequest,
+            account: accounts[0],
+        })
+        .then((response) => {
+            // console.log("Access token:", response.accessToken);
+
+            // Fetch profile data from Microsoft Graph
+            return callMsGraph(response.accessToken);
+        })
+        .then((graphData) => {
+            // console.log(graphData);
+            setGraphData(graphData);
+        })
+        .catch((error) => {
+            console.error("Error during token acquisition or profile data fetching:", error);
+        });
+    };
 
     return (
         <>
@@ -74,27 +45,55 @@ const ProfileContent = () => {
     );
 };
 
-/**
- * If a user is authenticated the ProfileContent component above is rendered. Otherwise a message indicating a user is not authenticated is rendered.
- */
-const MainContent = () => {
+const App = () => {
+    const { instance, accounts } = useMsal();
+
+    useEffect(() => {
+        if (accounts.length > 0) {
+            instance.acquireTokenSilent({
+                ...loginRequest,
+                account: accounts[0],
+            })
+            .then((response) => {
+                console.log("Access token:", response.accessToken);
+                console.log("Id token:", response.idToken);
+
+                // Send the token to the backend immediately after login
+                return fetch("http://localhost:8080/token", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${response.idToken}`
+                    },
+                    body: JSON.stringify({ accessToken: response.accessToken }),
+                });
+            })
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error("Network response was not ok");
+                }
+                return res.json();
+            })
+            .then((data) => {
+                console.log("Token successfully sent to backend:", data);
+            })
+            .catch((error) => {
+                console.error("Error during token sending process:", error);
+            });
+        }
+    }, [accounts, instance]);
+
     return (
-        <div className="App">
+        <PageLayout>
             <AuthenticatedTemplate>
                 <ProfileContent />
             </AuthenticatedTemplate>
 
             <UnauthenticatedTemplate>
-                <h5 className="card-title">Please sign-in to see your profile information.</h5>
+                 {/* <h5 className="card-title">Please sign-in to see your profile information.</h5> */}
             </UnauthenticatedTemplate>
-        </div>
+        </PageLayout>
     );
 };
 
-export default function App() {
-    return (
-        <PageLayout>
-            <MainContent />
-        </PageLayout>
-    );
-}
+export default App;
